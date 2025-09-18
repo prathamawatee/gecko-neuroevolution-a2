@@ -19,12 +19,21 @@
 
 This project uses [uv](https://docs.astral.sh/uv/).
 
-To run the code examples please do
+To run the code please do
+
+#Steps: 
+pip install uv
+uv venv
+uv sync
+install dependencies : pip install -e . 
+select python interpreter ->gecko-neuroevolution-a2
+run: python3 index.py
 
 ```bash
 uv venv
 uv sync
 uv run examples/0_render_single_frame.py
+python3 index.py
 ```
 
 ## TODO: Installation
