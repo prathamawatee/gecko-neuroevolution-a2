@@ -34,9 +34,6 @@ toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.att
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 
-
-
-
 # Keep track of data / history
 HISTORY = []
 
@@ -59,62 +56,60 @@ def gecko_controller(individual):
             data.ctrl[i] = np.clip(np.sin(t * w) * (np.pi/2), -np.pi/2, np.pi/2)
     return controller
 
-# def random_move(model, data, to_track) -> None:
-#     """Generate random movements for the robot's joints.
+def evaluate(individual):
+    """Evaluate the fitness of an individual genome.
+
+    The fitness is defined as the distance traveled in the x-y plane
+    from the starting position after a fixed duration of simulation.
+
+    Parameters
+    ----------
+    individual : list of float
+        The genome representing the controller weights.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the fitness value (distance traveled).
+    """
+    mujoco.set_mjcb_control(None)  # always reset first
+
+    # Setup world + gecko
+    world = SimpleFlatWorld()
+    gecko_core = gecko()
+    world.spawn(gecko_core.spec, spawn_position=[0, 0, 0.1])
+
+    model = world.spec.compile()
+    data = mujoco.MjData(model)
+
+    # Attach controller built from genome
+    mujoco.set_mjcb_control(gecko_controller(individual))
+
+    # Run simulation for a fixed duration
+    sim_duration = 10.0  # seconds
+    sim_timestep = model.opt.timestep
+    n_steps = int(sim_duration / sim_timestep)
+
+    # Initialise history tracking
+    HISTORY.clear()
     
-#     The mujoco.set_mjcb_control() function will always give 
-#     model and data as inputs to the function. Even if you don't use them,
-#     you need to have them as inputs.
+    for _ in range(n_steps):
+        mujoco.mj_step(model, data)
+        # Track position of the robot's core geom (assumed to be the first geom)
+        HISTORY.append(data.qpos[:3].copy())  # Store x, y, z positions
 
-#     Parameters
-#     ----------
+    # Calculate distance traveled in x-y plane from start to end
+    start_pos = np.array(HISTORY[0][:2])  # Initial x, y position
+    end_pos = np.array(HISTORY[-1][:2])   # Final x, y position
+    distance_traveled = np.linalg.norm(end_pos - start_pos)
 
-#     model : mujoco.MjModel
-#         The MuJoCo model of the robot.
-#     data : mujoco.MjData
-#         The MuJoCo data of the robot.
+    return (distance_traveled,)
+# Register EA components
+toolbox.register("evaluate", evaluate)         
+toolbox.register("mate", tools.cxTwoPoint)
+toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=0.1, indpb=0.2)
+toolbox.register("select", tools.selTournament, tournsize=3)        
 
-#     Returns
-#     -------
-#     None
-#         This function modifies the data.ctrl in place.
-#     """
-
-#     # Get the number of joints
-#     num_joints = model.nu 
-    
-#     # Hinges take values between -pi/2 and pi/2
-#     hinge_range = np.pi/2
-#     rand_moves = np.random.uniform(low= -hinge_range, # -pi/2
-#                                    high=hinge_range, # pi/2
-#                                    size=num_joints) 
-
-#     # There are 2 ways to make movements:
-#     # 1. Set the control values directly (this might result in junky physics)
-#     # data.ctrl = rand_moves
-
-#     # 2. Add to the control values with a delta (this results in smoother physics)
-#     delta = 0.05
-#     data.ctrl += rand_moves * delta 
-
-#     # Bound the control values to be within the hinge limits.
-#     # If a value goes outside the bounds it might result in jittery movement.
-#     data.ctrl = np.clip(data.ctrl, -np.pi/2, np.pi/2)
-
-#     # Save movement to history
-#     HISTORY.append(to_track[0].xpos.copy())
-
-#     ##############################################
-#     #
-#     # Take all the above into consideration when creating your controller
-#     # The input size, output size, output range
-#     # Your network might return ranges [-1,1], so you will need to scale it
-#     # to the expected [-pi/2, pi/2] range.
-#     # 
-#     # Or you might not need a delta and use the direct controller outputs
-#     #
-#     ############
-#     ###################################
 
 def show_qpos_history(history:list):
     # Convert list of [x,y,z] positions to numpy array
@@ -144,10 +139,9 @@ def show_qpos_history(history:list):
     plt.show()
 
 def main():
-    """Main function to run the simulation with random movements."""
-    mujoco.set_mjcb_control(None)  # always reset first
+    mujoco.set_mjcb_control(None)  # reset controller hook
 
-    # Setup world + gecko
+    # World + gecko
     world = SimpleFlatWorld()
     gecko_core = gecko()
     world.spawn(gecko_core.spec, spawn_position=[0, 0, 0.1])
@@ -161,7 +155,7 @@ def main():
     # Attach controller built from genome
     mujoco.set_mjcb_control(gecko_controller(test_genome))
 
-    # Launch viewer
+    # Launch interactive viewer to watch movement
     viewer.launch(model=model, data=data)
     # # Initialise controller to controller to None, always in the beginning.
     # mujoco.set_mjcb_control(None) # DO NOT REMOVE
