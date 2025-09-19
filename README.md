@@ -22,12 +22,14 @@ This project uses [uv](https://docs.astral.sh/uv/).
 To run the code please do
 
 #Steps: 
+```bash
 pip install uv
 uv venv
 uv sync
 install dependencies : pip install -e . 
 select python interpreter ->gecko-neuroevolution-a2
 run: python3 index.py
+```
 
 ```bash
 uv venv
