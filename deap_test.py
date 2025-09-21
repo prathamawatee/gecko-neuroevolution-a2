@@ -1,6 +1,18 @@
 import random
 from deap import base, creator, tools
 
+import mujoco
+from mujoco import viewer
+
+# Local libraries
+from ariel.utils.renderers import video_renderer
+from ariel.utils.video_recorder import VideoRecorder
+from ariel.simulation.environments.simple_flat_world import SimpleFlatWorld
+
+from ariel.body_phenotypes.robogen_lite.prebuilt_robots.gecko import gecko
+
+from deap_gecko import gecko_controller, show_qpos_history, evaluate_base, HISTORY
+
 # 1. Define the problem types (Fitness + Individual)
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))  
 # weights=(1.0,) means we want to maximize the objective
@@ -20,14 +32,14 @@ def evaluate(individual):
     # For example: sum of the elements
     return (sum(individual),)  # return a tuple
 
-toolbox.register("evaluate", evaluate)
-
 # 4. Register genetic operators
 toolbox.register("mate", tools.cxTwoPoint)  
 toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=0.1, indpb=0.2)
 toolbox.register("select", tools.selTournament, tournsize=3)
 
-def main():
+def main(fitness_function):
+    toolbox.register("evaluate", fitness_function)
+
     random.seed(42)  # for reproducibility
 
     # parameters
@@ -78,8 +90,39 @@ def main():
     # return final population
     return pop
 
+def perform_run(individual):
+    mujoco.set_mjcb_control(None)  # reset controller hook
+
+    # World + gecko
+    world = SimpleFlatWorld()
+    gecko_core = gecko()
+    world.spawn(gecko_core.spec, spawn_position=[0, 0, 0.1])
+
+    model = world.spec.compile()
+    data = mujoco.MjData(model)
+
+    # Hardcode a genome to test
+    test_genome = individual
+
+    # Attach controller built from genome
+    mujoco.set_mjcb_control(gecko_controller(test_genome))
+
+    # Launch interactive viewer to watch movement
+    viewer.launch(model=model, data=data)
+
+    show_qpos_history(HISTORY)
+
 if __name__ == "__main__":
-    final_pop = main()
+    final_pop = main(evaluate)
     # optionally, print best individual
     best = tools.selBest(final_pop, 1)[0]
-    print("Best individual is:", best, "with fitness:", best.fitness.values[0])
+    print("Run 1: Best individual is:", best, "with fitness:", best.fitness.values[0], "distance traveled: ", evaluate_base(best))
+
+    perform_run(best)
+
+    final_pop = main(evaluate_base)
+    # optionally, print best individual
+    best = tools.selBest(final_pop, 1)[0]
+    print("Run 2: Best individual is:", best, "with fitness:", best.fitness.values[0], "distance traveled: ", evaluate_base(best))
+
+    perform_run(best)

@@ -5,6 +5,8 @@ from deap import base, creator, tools
 import mujoco
 from mujoco import viewer
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Qt5Agg')
 
 # Local libraries
 from ariel.utils.renderers import video_renderer
@@ -56,7 +58,7 @@ def gecko_controller(individual):
             data.ctrl[i] = np.clip(np.sin(t * w) * (np.pi/2), -np.pi/2, np.pi/2)
     return controller
 
-def evaluate(individual):
+def evaluate_base(individual):
     """Evaluate the fitness of an individual genome.
 
     The fitness is defined as the distance traveled in the x-y plane
@@ -86,8 +88,8 @@ def evaluate(individual):
     mujoco.set_mjcb_control(gecko_controller(individual))
 
     # Run simulation for a fixed duration
-    sim_duration = 10.0  # seconds
-    sim_timestep = model.opt.timestep
+    sim_duration = 20.0  # seconds
+    sim_timestep = 0.002 # model.opt.timestep
     n_steps = int(sim_duration / sim_timestep)
 
     # Initialise history tracking
@@ -104,8 +106,12 @@ def evaluate(individual):
     distance_traveled = np.linalg.norm(end_pos - start_pos)
 
     return (distance_traveled,)
+
+
+
+
 # Register EA components
-toolbox.register("evaluate", evaluate)         
+toolbox.register("evaluate", evaluate_base)         
 toolbox.register("mate", tools.cxTwoPoint)
 toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=0.1, indpb=0.2)
 toolbox.register("select", tools.selTournament, tournsize=3)        
