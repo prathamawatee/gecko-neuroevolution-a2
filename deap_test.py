@@ -12,6 +12,7 @@ from ariel.simulation.environments.simple_flat_world import SimpleFlatWorld
 from ariel.body_phenotypes.robogen_lite.prebuilt_robots.gecko import gecko
 
 from deap_gecko import gecko_controller, show_qpos_history, evaluate_base, HISTORY
+from deap_gecko_cma_es import cma_es
 
 # 1. Define the problem types (Fitness + Individual)
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))  
@@ -37,19 +38,14 @@ toolbox.register("mate", tools.cxTwoPoint)
 toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=0.1, indpb=0.2)
 toolbox.register("select", tools.selTournament, tournsize=3)
 
-def main(fitness_function):
+def main(fitness_function, pop):
     toolbox.register("evaluate", fitness_function)
 
-    random.seed(42)  # for reproducibility
-
     # parameters
-    pop_size = 20
+    pop_size = 10
     crossover_prob = 0.7
     mutation_prob = 0.2
-    n_generations = 10
-
-    # initialize population
-    pop = toolbox.population(n=pop_size)
+    n_generations = 5
 
     # Evaluate the initial population
     fitnesses = list(map(toolbox.evaluate, pop))
@@ -91,6 +87,7 @@ def main(fitness_function):
     return pop
 
 def perform_run(individual):
+
     mujoco.set_mjcb_control(None)  # reset controller hook
 
     # World + gecko
@@ -113,16 +110,24 @@ def perform_run(individual):
     show_qpos_history(HISTORY)
 
 if __name__ == "__main__":
-    final_pop = main(evaluate)
+    random.seed(42)  # for reproducibility
+    pop_size = 10
+    # initialize population
+    pop = toolbox.population(n=pop_size)
+    print(pop[0])
+
+    final_pop = main(evaluate, pop)
     # optionally, print best individual
     best = tools.selBest(final_pop, 1)[0]
     print("Run 1: Best individual is:", best, "with fitness:", best.fitness.values[0], "distance traveled: ", evaluate_base(best))
+    # perform_run(best)
 
-    perform_run(best)
+    best, fitness = cma_es(individual=pop[0], fitness_func = evaluate_base, sigma=0.5, population_size=10, generations=5)
+    print("Run 2: Best individual is:", best, "with fitness:", fitness, "distance traveled: ", evaluate_base(best))
+    # perform_run(best)
 
-    final_pop = main(evaluate_base)
+    final_pop = main(evaluate_base, pop)
     # optionally, print best individual
     best = tools.selBest(final_pop, 1)[0]
     print("Run 2: Best individual is:", best, "with fitness:", best.fitness.values[0], "distance traveled: ", evaluate_base(best))
-
-    perform_run(best)
+    # perform_run(best)

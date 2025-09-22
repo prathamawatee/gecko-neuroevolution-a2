@@ -5,8 +5,6 @@ from deap import base, creator, tools
 import mujoco
 from mujoco import viewer
 import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Qt5Agg')
 
 # Local libraries
 from ariel.utils.renderers import video_renderer
