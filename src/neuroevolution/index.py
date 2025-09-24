@@ -325,43 +325,56 @@ def run_evolution(network_config, ea_params, experiment_name, run_number):
 # =========================
 def plot_results(results_dict):
     """
-    Plots average & max fitness curves across generations for each experiment.
-    - Shaded regions show standard deviation across multiple runs.
-    - Useful for visually comparing experiments.
+    Plots:
+    - For baseline: boxplot of the average fitness across runs.
+    - For evolutionary experiments: average & max fitness curves across generations.
     """
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    colors = ['blue', 'red', 'green']
+    num_experiments = len(results_dict)
+    fig, axes = plt.subplots(1, num_experiments, figsize=(6 * num_experiments, 6))
+    if num_experiments == 1:
+        axes = [axes]
+    colors = ['blue', 'red', 'green', 'purple', 'orange']
 
     for idx, (exp_name, runs_data) in enumerate(results_dict.items()):
         ax = axes[idx]
-        all_avg_fitness = [run['avg_fitness'] for run in runs_data]
-        all_max_fitness = [run['max_fitness'] for run in runs_data]
+        if "Baseline" in exp_name:
+            # Collect average fitness from all runs
+            all_avg = [run['avg_fitness'][0] for run in runs_data]
+            # Boxplot for average fitness only
+            ax.boxplot(all_avg, labels=['Avg Fitness'])
+            ax.set_title(f'{exp_name} (Baseline)')
+            ax.set_ylabel('Fitness')
+            ax.grid(True, alpha=0.3)
+        else:
+            # Evolutionary: line plot as before
+            all_avg_fitness = [run['avg_fitness'] for run in runs_data]
+            all_max_fitness = [run['max_fitness'] for run in runs_data]
 
-        avg_array = np.array(all_avg_fitness)
-        max_array = np.array(all_max_fitness)
+            avg_array = np.array(all_avg_fitness)
+            max_array = np.array(all_max_fitness)
 
-        generations = runs_data[0]['generations']
+            generations = runs_data[0]['generations']
 
-        mean_avg = np.mean(avg_array, axis=0)
-        std_avg = np.std(avg_array, axis=0)
-        mean_max = np.mean(max_array, axis=0)
-        std_max = np.std(max_array, axis=0)
+            mean_avg = np.mean(avg_array, axis=0)
+            std_avg = np.std(avg_array, axis=0)
+            mean_max = np.mean(max_array, axis=0)
+            std_max = np.std(max_array, axis=0)
 
-        ax.plot(generations, mean_avg, color=colors[idx], linestyle='--',
-                label='Avg Fitness', alpha=0.8)
-        ax.fill_between(generations, mean_avg - std_avg, mean_avg + std_avg,
-                        color=colors[idx], alpha=0.2)
+            ax.plot(generations, mean_avg, color=colors[idx % len(colors)], linestyle='--',
+                    label='Avg Fitness', alpha=0.8)
+            ax.fill_between(generations, mean_avg - std_avg, mean_avg + std_avg,
+                            color=colors[idx % len(colors)], alpha=0.2)
 
-        ax.plot(generations, mean_max, color=colors[idx], linestyle='-',
-                label='Max Fitness', linewidth=2)
-        ax.fill_between(generations, mean_max - std_max, mean_max + std_max,
-                        color=colors[idx], alpha=0.3)
+            ax.plot(generations, mean_max, color=colors[idx % len(colors)], linestyle='-',
+                    label='Max Fitness', linewidth=2)
+            ax.fill_between(generations, mean_max - std_max, mean_max + std_max,
+                            color=colors[idx % len(colors)], alpha=0.3)
 
-        ax.set_title(f'{exp_name}')
-        ax.set_xlabel('Generation')
-        ax.set_ylabel('Fitness')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
+            ax.set_title(f'{exp_name}')
+            ax.set_xlabel('Generation')
+            ax.set_ylabel('Fitness')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     return fig
