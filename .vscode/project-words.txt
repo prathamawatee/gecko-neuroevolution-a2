@@ -19,10 +19,12 @@ alg
 algpseudocodex
 ALIFE
 amphitheater
+amsmath
 analyzer
 anyio
 Aorus
 apdisk
+apidocs
 apng
 ARCHS
 argcomplete
@@ -34,11 +36,17 @@ ASTRK
 astropy
 asyncio
 aurelia
+autoapi
+autoapisummary
 autobuild
 AUTOCONNECT
+autodoc
 autolimits
 automodule
 autoref
+autosectionlabel
+autosummary
+Autosummary
 autoupdate
 avc
 avg
@@ -86,6 +94,7 @@ BTCLR
 buildc
 bvh
 bvhnum
+bysource
 bzr
 captionpos
 captionsetup
@@ -144,6 +153,7 @@ CONVEXHULL
 Cookiecuter
 cookiecutter
 cookiecutters
+copybutton
 copyfile
 copypath
 corne
@@ -176,6 +186,7 @@ debugpy
 deemphasized
 deepcopy
 defenses
+deflist
 Deniz
 devcontainers
 dialog
@@ -194,6 +205,7 @@ docstrings
 doctest
 doctests
 dof
+dollarmath
 donjayamanne
 donotpresent
 dotnet
@@ -214,13 +226,16 @@ eeef
 ehthumbs
 eiben
 Eiben
+elif
 encryptable
+endfor
 engineio
 ENT
 enummember
 env
 EOF
 epath
+equalto
 errmsg
 errorlens
 esbenp
@@ -240,10 +255,12 @@ fbcpg
 FBT
 fcl
 fdfind
+fieldlist
 figsize
 filelock
 FILTEREXACT
 firsthead
+fixedcamid
 FLEXBVH
 FLEXEDGE
 FLEXFACE
@@ -256,6 +273,7 @@ fontspec
 fonttools
 footnotesize
 fourcc
+fovy
 fpath
 freejoint
 fremp
@@ -295,6 +313,7 @@ gnupg
 gprof
 Graphviz
 Grégoire
+Grigoriadis
 Guszti
 hammerspoon
 hasattr
@@ -333,12 +352,14 @@ ifundefined
 Ilya
 img
 implicitfast
+imread
 imshow
 inf
 inheritability
 iniconfig
 INP
 inproceedings
+Ioannis
 ipynb
 ipython
 isdigit
@@ -347,6 +368,7 @@ isinstance
 isort
 iterm
 itsdangerous
+ivar
 jabref
 Jakub
 jax
@@ -378,6 +400,7 @@ keywordstyle
 KGM
 Kief
 kiwisolver
+klass
 KOMA
 Kornatowski
 KSCAN
@@ -397,6 +420,7 @@ layoutdefault
 LBKT
 LBRC
 LCTRL
+lerp
 LFT
 LGUI
 liamrwilkins
@@ -445,6 +469,7 @@ logfilewarninglist
 logscale
 longtable
 longtblr
+lookat
 Loshchilov
 Lses
 LSHFT
@@ -469,6 +494,7 @@ mcr
 mdit
 mdurl
 MESHBVH
+meshgrid
 meshname
 metaheuristic
 metahuristic
@@ -494,6 +520,7 @@ modificationdate
 modname
 moredelim
 morekeywords
+mpimg
 MRO
 msg
 msix
@@ -513,6 +540,7 @@ myst
 nala
 Nala
 nbody
+nbsphinx
 nbvh
 ncol
 ncols
@@ -574,6 +602,7 @@ optuna
 orjson
 osmesa
 outdir
+pandoc
 pathlib
 pathspec
 pawlik
@@ -639,6 +668,7 @@ pymupdf
 pyopengl
 pypa
 pypackages
+pypandoc
 pyparsing
 pypdf
 pypi
@@ -657,11 +687,13 @@ pyyaml
 QACC
 Qml
 qnp
+qpos
 qualname
 quat
 qwtel
 RALT
 Ramel
+randn
 rastrigin
 Rastrigin
 Raveaux
@@ -675,6 +707,7 @@ Rect
 reexport
 refquat
 refurb
+rejectattr
 rel
 repitition
 reviung
@@ -695,6 +728,7 @@ rpc
 rpt
 RSE
 rstrip
+rtype
 RUF
 savefig
 schaffers
@@ -711,6 +745,7 @@ SDFITER
 sdist
 seanwu
 SEL
+selectattr
 selectby
 sessionmaker
 setattr
@@ -728,6 +763,7 @@ siunitx
 SLF
 slvs
 smam
+smartquotes
 sniffio
 socketio
 softwareupdate
@@ -761,6 +797,8 @@ stringstyle
 stubgen
 stuurman
 Stuurman
+subpackages
+Subpackages
 suptitle
 Svargotter
 svelteflow
@@ -772,6 +810,7 @@ tabularray
 Taichi
 talltblr
 tamasfe
+tasklist
 tblr
 testmod
 testpypi
@@ -791,6 +830,7 @@ timemachine
 timestep
 Timmis
 titlesec
+titlesonly
 toctree
 tol
 tolif
@@ -799,6 +839,7 @@ Tomczak
 tomli
 topn
 tqdm
+trackbodyid
 trimesh
 Trn
 TRN
@@ -812,6 +853,7 @@ Tyrrell
 underfull
 Underglow
 UNDERGLOW
+undoc
 uniapprox
 urdf
 usernamehw
@@ -844,6 +886,7 @@ xcolor
 xdoctest
 xindy
 xlabel
+xlim
 xmat
 xpos
 xshift
@@ -855,6 +898,7 @@ xyzw
 yarl
 Yinyang
 ylabel
+ylim
 ypos
 yshift
 yticklabels
