@@ -1,0 +1,327 @@
+{
+  "configuration": {
+    "pop_size": 20,
+    "num_generations": 30,
+    "mutation_rate": 0.2,
+    "crossover_rate": 0.7,
+    "elite_size": 2,
+    "tournament_size": 3
+  },
+  "baseline": {
+    "history": [
+      {
+        "generation": 1,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 2,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 3,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 4,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 5,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 6,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 7,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 8,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 9,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 10,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 11,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 12,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 13,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 14,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 15,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 16,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 17,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 18,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 19,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 20,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 21,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 22,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 23,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 24,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 25,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 26,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 27,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 28,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 29,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 30,
+        "fitness": -1000.0,
+        "distance": 0.0
+      }
+    ],
+    "best_fitness": -1000.0,
+    "best_distance": 0.0
+  },
+  "main": {
+    "history": [
+      {
+        "generation": 1,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 2,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 3,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 4,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 5,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 6,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 7,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 8,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 9,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 10,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 11,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 12,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 13,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 14,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 15,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 16,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 17,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 18,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 19,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 20,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 21,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 22,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 23,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 24,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 25,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 26,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 27,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 28,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 29,
+        "fitness": -1000.0,
+        "distance": 0.0
+      },
+      {
+        "generation": 30,
+        "fitness": -1000.0,
+        "distance": 0.0
+      }
+    ],
+    "best_fitness": -1000.0,
+    "best_distance": 0.0
+  },
+  "improvement": {
+    "fitness_gain": 0.0,
+    "distance_gain": 0.0,
+    "percentage_improvement": 0.0
+  }
+}
