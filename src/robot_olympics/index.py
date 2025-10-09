@@ -34,6 +34,8 @@ import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 import mujoco as mj
+import imageio
+from mujoco import Renderer 
 
 # ARIEL 
 from ariel import console
@@ -48,6 +50,8 @@ from ariel.simulation.environments import OlympicArena
 from ariel.utils.runners import simple_runner
 from ariel.utils.tracker import Tracker
 from ariel.utils.renderers import single_frame_renderer
+from ariel.utils.video_recorder import VideoRecorder
+from ariel.utils.renderers import video_renderer
 
 from robot_olympics.config.config import EVOLUTION_CONFIG, ENVIRONMENT_CONFIG
 
@@ -436,7 +440,7 @@ def evolve():
                 new_pop.append(c)
             pop = new_pop
 
-    return pop, best_hist
+    return pop, best_hist, avg_hist
 
 # Plotting  Function
 def plot_fitness(best, avg, path):
@@ -449,14 +453,87 @@ def plot_fitness(best, avg, path):
     plt.title("Fitness Evolution Over Generations")
     plt.savefig(path, dpi=150, bbox_inches="tight"); plt.close()
 
+def create_best_robot_video(individual: Individual, video_path: Path):
+    """
+    Reruns the simulation and records a video with a camera that follows the robot.
+    This version includes a frame-rate limiter to prevent freezing.
+    """
+    console.log(f"\n[bold cyan]Creating focused video for the best robot...[/bold cyan]")
+    mj.set_mjcb_control(None)
+
+    try:
+        # 1. Recreate the robot and environment
+        robot_spec = generate_robot_from_genes(individual)
+        if not individual.robot_graph or len(individual.robot_graph.nodes) < 3:
+            console.log("[yellow]Best robot has an invalid body, skipping video.[/yellow]")
+            return
+
+        world = OlympicArena()
+        world.spawn(robot_spec.spec, spawn_position=SPAWN_POS)
+        model = world.spec.compile()
+
+        # 2. Use consistent physics settings
+        model.opt.timestep = 0.001
+        model.dof_damping[:] = np.maximum(model.dof_damping, 0.05)
+        data = mj.MjData(model)
+        mj.mj_resetData(model, data)
+
+        # 3. Set up the evolved controller
+        def ctrl_fn(m, d):
+            return evolved_nn_controller(m, d, individual.brain_genes)
+        mj.set_mjcb_control(ctrl_fn)
+        
+        # 4. Set up the renderer, camera, and frame collection
+        renderer = Renderer(model, height=720, width=1280)
+        frames = []
+        camera = mj.MjvCamera()
+        camera.distance = 6.0
+        camera.azimuth = 90.0
+        camera.elevation = -15.0
+
+        # 5. *** FIX: Set a target frame rate for the video ***
+        target_fps = 30.0
+        
+        console.log(f"Recording video to {video_path}...")
+        while data.time < SIM_DURATION:
+            # Update camera to follow the robot
+            robot_x_pos = data.geom('robot-core').xpos[0]
+            camera.lookat[0] = robot_x_pos
+            
+            mj.mj_step(model, data)
+            
+            # *** FIX: Only render a frame if enough simulation time has passed ***
+            # This check prevents rendering thousands of unnecessary frames.
+            if len(frames) < data.time * target_fps:
+                 renderer.update_scene(data, camera=camera)
+                 pixels = renderer.render()
+                 frames.append(pixels)
+
+        # 6. Save the collected frames as a video
+        video_folder = video_path.parent
+        video_folder.mkdir(exist_ok=True, parents=True)
+        imageio.mimsave(video_path, frames, fps=int(target_fps))
+        
+        console.log(f"[green]Successfully saved focused video.[/green]")
+
+    except Exception as e:
+        console.log(f"[red]Error creating video: {e}[/red]")
+
 def main():
     console.log("[bold]Robot Olympics — Stable Evolutionary Algorithm[/bold]")
+    
+    # The evolve function returns all three values.
     pop, best, avg = evolve()
+
     plot_fitness(best, avg, str(DATA / "fitness_curves.png"))
     best_robot = max(pop, key=lambda i: i.fitness)
     console.log(f"[green]Best robot fitness: {best_robot.fitness:.2f}[/green]")
     if best_robot.robot_graph is not None:
         save_graph_as_json(best_robot.robot_graph, DATA / "best_robot.json")
+
+
+    create_best_robot_video(best_robot, DATA / "videos" / "best_robot_final.mp4")
+    
 
 if __name__ == "__main__":
     main()
