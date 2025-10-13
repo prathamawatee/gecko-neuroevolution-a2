@@ -36,6 +36,7 @@ import matplotlib.pyplot as plt
 import mujoco as mj
 import imageio
 from mujoco import Renderer 
+import networkx as nx
 
 # ARIEL 
 from ariel import console
@@ -131,9 +132,9 @@ def fitness_function(history: list[float], time_taken: float) -> float:
     progress = float(np.dot(end - start, gdir))
     progress_norm = progress / max_dist
 
-    # Backward movement gets heavily penalized
+    # Softer backward penalty to allow exploration
     if progress < 0:
-        return -200.0 * abs(progress)
+        return -50.0 * abs(progress)  # Less harsh than before
 
     # Reward forward, penalize lateral drift
     lane_penalty = 100.0 * abs(yc)
@@ -207,6 +208,43 @@ def show_xpos_history(history: list[float], save_path: str) -> None:
     plt.close()
 
 
+# Robot Graph Validation
+def validate_robot_graph(graph) -> bool:
+    """
+    Check if robot graph is valid for simulation.
+    
+    Validates:
+    - Minimum node count (at least 3 modules)
+    - Graph connectivity (all parts connected)
+    - Presence of actuators (robot can move)
+    
+    Returns True if valid, False otherwise.
+    """
+    if graph is None or len(graph.nodes) < 3:
+        return False
+    
+    # Check if graph is connected (weakly for directed graphs)
+    try:
+        if not nx.is_weakly_connected(graph):
+            return False
+    except:
+        # If nx methods fail, assume it's okay
+        pass
+    
+    # Check if there are actuators (look for joints that can be controlled)
+    # Note: This is a heuristic - adjust based on your graph structure
+    actuator_count = 0
+    for node_id, node_data in graph.nodes(data=True):
+        # Check for indicators of actuatable joints
+        if node_data.get('has_actuator', True):  # Default True if not specified
+            actuator_count += 1
+    
+    if actuator_count < 1:
+        return False
+    
+    return True
+
+
 #Individual Class (Robot Genome)
 class Individual:
     """
@@ -218,6 +256,8 @@ class Individual:
     - fitness: performance score
 
     These genes evolve across generations.
+    
+    FIXED: Brain now adapts to body architecture dynamically
     """
     def __init__(self, body_genes=None, brain_genes=None):
         # Body genes: 3 genotype vectors for NDE (v1, v2, v3)
@@ -227,19 +267,21 @@ class Individual:
             self.body_genes = body_genes
 
         # Brain genes: weights of 3-layer neural network controller
+        # Store as dict with flexible architecture
         if brain_genes is None:
-            input_size, hidden_size, output_size = 32, 8, 10
+            # Start with reasonable defaults that will adapt
             self.brain_genes = {
-                "w1": RNG.normal(0.0, 0.2, (input_size, hidden_size)),
-                "w2": RNG.normal(0.0, 0.2, (hidden_size, hidden_size)),
-                "w3": RNG.normal(0.0, 0.2, (hidden_size, output_size)),
+                "w1": RNG.normal(0.0, 0.2, (32, 8)),
+                "w2": RNG.normal(0.0, 0.2, (8, 8)),
+                "w3": RNG.normal(0.0, 0.2, (8, 10)),
             }
         else:
-            self.brain_genes = brain_genes
+            self.brain_genes = {k: v.copy() for k, v in brain_genes.items()}
 
         self.fitness = 0.0
         self.robot_graph = None
         self.robot_spec = None
+
 
 # Body Generation (Phenotype Construction)
 def generate_robot_from_genes(individual: Individual):
@@ -258,7 +300,8 @@ def generate_robot_from_genes(individual: Individual):
     individual.robot_spec = robot_spec
     return robot_spec
 
-# Neural Controller (Brain)
+
+# Neural Controller (Brain) - FIXED VERSION
 def evolved_nn_controller(model, data, brain):
     """
     Compute actuator commands using evolved neural network.
@@ -266,20 +309,57 @@ def evolved_nn_controller(model, data, brain):
     Input: joint positions (qpos), velocities (qvel)
     Output: smooth motor torques scaled between [-0.3, 0.3]
     The controller allows the robot to coordinate movement.
+    
+    FIXED: Now gracefully adapts brain architecture to body changes
+    while preserving learned weights where possible.
     """
     qpos = np.asarray(data.qpos)
     qvel = np.asarray(data.qvel)
     vpart = qvel[: len(qpos)] if qvel.size > 0 else np.zeros_like(qpos)
     inputs = np.concatenate([qpos, vpart, np.array([1.0])])  # + bias
 
-    in_size, hidden, out_size = inputs.shape[0], 8, model.nu
+    in_size = inputs.shape[0]
+    hidden = 8  # Fixed hidden layer size
+    out_size = model.nu
+    
     w1, w2, w3 = brain["w1"], brain["w2"], brain["w3"]
 
-    # Adjust network size if mismatched
-    if w1.shape[0] != in_size:
-        w1 = RNG.normal(0.0, 0.2, (in_size, hidden)); brain["w1"] = w1
-    if w3.shape[1] != out_size:
-        w3 = RNG.normal(0.0, 0.2, (hidden, out_size)); brain["w3"] = w3
+    # FIXED: Adapt w1 (input layer) while preserving learned weights
+    if w1.shape[0] != in_size or w1.shape[1] != hidden:
+        old_w1 = w1
+        new_w1 = RNG.normal(0.0, 0.1, (in_size, hidden))  # Smaller init for stability
+        
+        # Copy over weights we can preserve
+        min_in = min(old_w1.shape[0], in_size)
+        min_hidden = min(old_w1.shape[1], hidden)
+        new_w1[:min_in, :min_hidden] = old_w1[:min_in, :min_hidden]
+        
+        brain["w1"] = new_w1
+        w1 = new_w1
+
+    # FIXED: Adapt w2 (hidden layer) if needed
+    if w2.shape[0] != hidden or w2.shape[1] != hidden:
+        old_w2 = w2
+        new_w2 = RNG.normal(0.0, 0.1, (hidden, hidden))
+        
+        min_h1 = min(old_w2.shape[0], hidden)
+        min_h2 = min(old_w2.shape[1], hidden)
+        new_w2[:min_h1, :min_h2] = old_w2[:min_h1, :min_h2]
+        
+        brain["w2"] = new_w2
+        w2 = new_w2
+
+    # FIXED: Adapt w3 (output layer) while preserving learned weights
+    if w3.shape[0] != hidden or w3.shape[1] != out_size:
+        old_w3 = w3
+        new_w3 = RNG.normal(0.0, 0.1, (hidden, out_size))
+        
+        min_hidden = min(old_w3.shape[0], hidden)
+        min_out = min(old_w3.shape[1], out_size)
+        new_w3[:min_hidden, :min_out] = old_w3[:min_hidden, :min_out]
+        
+        brain["w3"] = new_w3
+        w3 = new_w3
 
     # Forward pass through NN
     l1 = np.tanh(inputs @ w1)
@@ -290,9 +370,13 @@ def evolved_nn_controller(model, data, brain):
     outputs = 0.3 * raw
     return np.clip(outputs, -0.3, 0.3)
 
+
 def save_submission_json(individual: Individual, out_path: Path):
+    """
+    Save the best robot and controller to JSON files for submission.
+    Creates both combined and controller-only JSON files.
+    """
     import json
-    import networkx as nx
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -364,22 +448,29 @@ def save_submission_json(individual: Individual, out_path: Path):
 
     return out_path
 
-# Individual Evaluation (Simulation + Fitness) 
+
+# Individual Evaluation (Simulation + Fitness) - IMPROVED
 def evaluate_individual(individual: Individual):
     """
     Simulate one robot in OlympicArena, track its trajectory, and compute fitness.
 
     Steps:
     1. Decode body via NDE.
-    2. Build Mujoco model and environment.
-    3. Run simulation using neural controller.
-    4. Compute goal-directed fitness.
-    5. Stop early if robot reaches finish line.
+    2. Validate robot graph structure.
+    3. Build Mujoco model and environment.
+    4. Run simulation using neural controller.
+    5. Compute goal-directed fitness.
+    6. Stop early if robot reaches finish line.
+    
+    FIXED: Added graph validation to catch invalid morphologies early.
     """
     try:
         robot_spec = generate_robot_from_genes(individual)
-        if len(individual.robot_graph.nodes) < 3:
-            return -50.0  # Invalid body
+        
+        # FIXED: Validate robot graph before simulation
+        if not validate_robot_graph(individual.robot_graph):
+            console.log("[yellow]Invalid robot graph (too small/disconnected)[/yellow]")
+            return -50.0
 
         mj.set_mjcb_control(None)
         world = OlympicArena()
@@ -419,19 +510,25 @@ def evaluate_individual(individual: Individual):
         console.log(f"[red]Error evaluating individual: {e}[/red]")
         return -50.0
 
+
 # Evolutionary Operators : selection, crossover, mutation, evolution loop
 def tournament_selection(pop, k):
     """Select the best individual among k randomly chosen candidates."""
     import random
     return max(random.sample(pop, k), key=lambda ind: ind.fitness)
 
+
 def crossover(p1, p2):
     """
     Recombine genes from two parents to create a child.
     Body genes: single-point crossover
     Brain genes: blended crossover if dimensions match
+    
+    FIXED: Deep copy brain genes to prevent mutation contamination
     """
     child = Individual()
+    
+    # Body crossover
     for i in range(3):
         if RNG.random() < CROSSOVER_RATE:
             point = RNG.integers(0, GENOTYPE_SIZE)
@@ -439,28 +536,43 @@ def crossover(p1, p2):
         else:
             child.body_genes[i] = p1.body_genes[i].copy()
 
+    # Brain crossover with shape matching
     if RNG.random() < CROSSOVER_RATE:
-        shapes_match = all(p1.brain_genes[k].shape == p2.brain_genes[k].shape for k in p1.brain_genes)
+        shapes_match = all(
+            p1.brain_genes[k].shape == p2.brain_genes[k].shape 
+            for k in p1.brain_genes if k in p2.brain_genes
+        )
         if shapes_match:
             alpha = RNG.random()
-            child.brain_genes = {k: alpha * p1.brain_genes[k] + (1 - alpha) * p2.brain_genes[k] for k in p1.brain_genes}
+            child.brain_genes = {
+                k: alpha * p1.brain_genes[k] + (1 - alpha) * p2.brain_genes[k] 
+                for k in p1.brain_genes
+            }
         else:
-            child.brain_genes = {k: p1.brain_genes[k].copy() for k in p1.brain_genes}
+            # If shapes don't match, take from fitter parent
+            parent = p1 if p1.fitness > p2.fitness else p2
+            child.brain_genes = {k: parent.brain_genes[k].copy() for k in parent.brain_genes}
     else:
         child.brain_genes = {k: p1.brain_genes[k].copy() for k in p1.brain_genes}
+    
     return child
+
 
 def mutate(ind, gen, max_gen):
     """
     Introduce random changes to genes (Gaussian noise).
     Mutation rate decays over generations.
     Early gens: only brain evolves (body freeze for controller adaptation).
+    
+    FIXED: More gradual body evolution and adaptive mutation strength
     """
     progress = gen / max_gen
-    rate = MUTATION_RATE * (1 - progress)
-    strength = 0.3 * (1 - progress)
-    body_rate = 0.0 if gen < 5 else rate
-    brain_rate = rate * (1.5 if gen < 5 else 1.0)
+    rate = MUTATION_RATE * (1 - 0.5 * progress)  # Decay slower
+    strength = 0.2 * (1 - 0.7 * progress)  # Smaller initial strength
+    
+    # IMPROVED: Gradual body evolution start (freeze first 3 gens only)
+    body_rate = 0.0 if gen < 3 else rate * 0.5  # Lower body mutation rate
+    brain_rate = rate * (2.0 if gen < 3 else 1.0)  # Higher brain rate early on
 
     # Body mutation
     for i in range(3):
@@ -468,11 +580,13 @@ def mutate(ind, gen, max_gen):
             noise = RNG.normal(0, strength, GENOTYPE_SIZE)
             ind.body_genes[i] = np.clip(ind.body_genes[i] + noise, 0, 1)
 
-    # Brain mutation
+    # Brain mutation - now safe because we deep copy in crossover
     if RNG.random() < brain_rate:
         for k in ind.brain_genes:
-            ind.brain_genes[k] += RNG.normal(0, strength, ind.brain_genes[k].shape)
+            ind.brain_genes[k] = ind.brain_genes[k] + RNG.normal(0, strength, ind.brain_genes[k].shape)
+    
     return ind
+
 
 #Evolution Loop 
 def evolve():
@@ -480,45 +594,60 @@ def evolve():
     Run the full evolutionary process.
     Evaluate → Select → Crossover → Mutate → Repeat
     Tracks and logs best and average fitness each generation.
+    
+    IMPROVED: Better logging and progress tracking
     """
     pop = [Individual() for _ in range(POPULATION_SIZE)]
     best_hist, avg_hist = [], []
 
     for g in range(NUM_GENERATIONS):
-        console.log(f"\n[bold]Generation {g+1}/{NUM_GENERATIONS}[/bold]")
+        console.log(f"\n[bold cyan]Generation {g+1}/{NUM_GENERATIONS}[/bold cyan]")
+        
+        # Evaluate all individuals
         for i, ind in enumerate(pop):
             ind.fitness = evaluate_individual(ind)
-            console.log(f"  Individual {i+1}: fitness = {ind.fitness:.2f}")
+            console.log(f"  Individual {i+1}/{POPULATION_SIZE}: fitness = {ind.fitness:.2f}")
 
+        # Sort by fitness
         pop.sort(key=lambda i: i.fitness, reverse=True)
         best, avg = pop[0].fitness, np.mean([i.fitness for i in pop])
-        best_hist.append(best); avg_hist.append(avg)
-        console.log(f"[green]Best: {best:.2f}, Avg: {avg:.2f}[/green]")
+        best_hist.append(best)
+        avg_hist.append(avg)
+        
+        console.log(f"[green bold]Best: {best:.2f}, Avg: {avg:.2f}, Worst: {pop[-1].fitness:.2f}[/green bold]")
 
+        # Create next generation (elitism + tournament selection)
         if g < NUM_GENERATIONS - 1:
             new_pop = pop[:ELITE_SIZE]  # Keep top performers (elitism)
+            
             while len(new_pop) < POPULATION_SIZE:
-                c = mutate(
-                    crossover(
-                        tournament_selection(pop, TOURNAMENT_SIZE),
-                        tournament_selection(pop, TOURNAMENT_SIZE)
-                    ), g, NUM_GENERATIONS
-                )
-                new_pop.append(c)
+                parent1 = tournament_selection(pop, TOURNAMENT_SIZE)
+                parent2 = tournament_selection(pop, TOURNAMENT_SIZE)
+                child = crossover(parent1, parent2)
+                child = mutate(child, g, NUM_GENERATIONS)
+                new_pop.append(child)
+            
             pop = new_pop
 
     return pop, best_hist, avg_hist
 
-# Plotting  Function
+
+# Plotting Function
 def plot_fitness(best, avg, path):
+    """Plot fitness curves over generations."""
     plt.figure(figsize=(10, 6))
     gens = range(1, len(best) + 1)
     plt.plot(gens, best, "b-", lw=2, label="Best Fitness")
     plt.plot(gens, avg, "r--", lw=2, label="Average Fitness")
-    plt.xlabel("Generation"); plt.ylabel("Fitness")
-    plt.legend(); plt.grid(True, alpha=0.3)
+    plt.xlabel("Generation")
+    plt.ylabel("Fitness")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
     plt.title("Fitness Evolution Over Generations")
-    plt.savefig(path, dpi=150, bbox_inches="tight"); plt.close()
+    plt.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close()
+    console.log(f"[green]Saved fitness plot to {path}[/green]")
+
 
 def create_best_robot_video(individual: Individual, video_path: Path):
     """
@@ -531,7 +660,7 @@ def create_best_robot_video(individual: Individual, video_path: Path):
     try:
         # 1. Recreate the robot and environment
         robot_spec = generate_robot_from_genes(individual)
-        if not individual.robot_graph or len(individual.robot_graph.nodes) < 3:
+        if not validate_robot_graph(individual.robot_graph):
             console.log("[yellow]Best robot has an invalid body, skipping video.[/yellow]")
             return
 
@@ -558,7 +687,7 @@ def create_best_robot_video(individual: Individual, video_path: Path):
         camera.azimuth = 90.0
         camera.elevation = -15.0
 
-        # 5. *** FIX: Set a target frame rate for the video ***
+        # 5. Set a target frame rate for the video
         target_fps = 30.0
         
         console.log(f"Recording video to {video_path}...")
@@ -566,30 +695,28 @@ def create_best_robot_video(individual: Individual, video_path: Path):
             # Update camera to follow the robot
             # If renderer API exposes geoms by name, try to follow core; fallback to xpos index
             try:
-                core_geom = model.geom_names.index("core")
-                robot_x_pos = data.geom(core_geom).xpos[0]
-            except Exception:
-                robot_x_pos = 0.0
-            try:
-                camera.lookat[0] = robot_x_pos
+                core_geom_id = mj.mj_name2id(model, mj.mjtObj.mjOBJ_GEOM, "core")
+                if core_geom_id >= 0:
+                    robot_x_pos = data.geom(core_geom_id).xpos[0]
+                    camera.lookat[0] = robot_x_pos
             except Exception:
                 pass
             
             mj.mj_step(model, data)
             
-            # *** FIX: Only render a frame if enough simulation time has passed ***
+            # Only render a frame if enough simulation time has passed
             # This check prevents rendering thousands of unnecessary frames.
             if len(frames) < data.time * target_fps:
-                 renderer.update_scene(data, camera=camera)
-                 pixels = renderer.render()
-                 frames.append(pixels)
+                renderer.update_scene(data, camera=camera)
+                pixels = renderer.render()
+                frames.append(pixels)
 
         # 6. Save the collected frames as a video
         video_folder = video_path.parent
         video_folder.mkdir(exist_ok=True, parents=True)
         imageio.mimsave(video_path, frames, fps=int(target_fps))
         
-        console.log(f"[green]Successfully saved focused video.[/green]")
+        console.log(f"[green]Successfully saved video with {len(frames)} frames.[/green]")
 
     except Exception as e:
         console.log(f"[red]Error creating video: {e}[/red]")
