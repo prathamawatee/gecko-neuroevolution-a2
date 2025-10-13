@@ -92,7 +92,7 @@ def _goal_dir():
     Used to compute dot-product-based progress in fitness shaping.
     Inside your fitness function to measure how much the robot moved toward the goal rather than randomly in any direction:
     progress = np.dot(end - start, _goal_dir())
-    dot product: projects the robot’s displacement onto the goal direction.
+    dot product: projects the robot's displacement onto the goal direction.
 
     If the robot moves straight toward the target, dot product is positive and large
 
@@ -156,7 +156,7 @@ def fitness_function(history: list[float], time_taken: float) -> float:
 # Visualization Function 
 def show_xpos_history(history: list[float], save_path: str) -> None:
     """
-    Visualize the robot’s trajectory on a top-down view of the OlympicArena.
+    Visualize the robot's trajectory on a top-down view of the OlympicArena.
     This helps verify that the robot stays on the track and moves forward.
     """
     camera = mj.MjvCamera()
@@ -212,7 +212,7 @@ class Individual:
     """
     Represents one robot in the evolutionary population.
 
-    Each robot’s genome consists of:
+    Each robot's genome consists of:
     - body_genes (3 vectors): define morphology through NDE
     - brain_genes (NN weights): define movement and control
     - fitness: performance score
@@ -241,7 +241,6 @@ class Individual:
         self.robot_graph = None
         self.robot_spec = None
 
-
 # Body Generation (Phenotype Construction)
 def generate_robot_from_genes(individual: Individual):
     """
@@ -258,7 +257,6 @@ def generate_robot_from_genes(individual: Individual):
     robot_spec = construct_mjspec_from_graph(robot_graph)
     individual.robot_spec = robot_spec
     return robot_spec
-
 
 # Neural Controller (Brain)
 def evolved_nn_controller(model, data, brain):
@@ -292,6 +290,79 @@ def evolved_nn_controller(model, data, brain):
     outputs = 0.3 * raw
     return np.clip(outputs, -0.3, 0.3)
 
+def save_submission_json(individual: Individual, out_path: Path):
+    import json
+    import networkx as nx
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    bg = getattr(individual, "brain_genes", None)
+    if bg is None:
+        raise RuntimeError("individual.brain_genes not found")
+
+    def _to_list(arr):
+        try:
+            return np.asarray(arr).tolist()
+        except Exception:
+            return None
+
+    w1 = _to_list(bg.get("w1"))
+    w2 = _to_list(bg.get("w2"))
+    w3 = _to_list(bg.get("w3"))
+
+    arch = {}
+    try:
+        arr = np.asarray(bg.get("w1"))
+        arch["input_size"], arch["hidden_size"] = int(arr.shape[0]), int(arr.shape[1])
+    except Exception:
+        arch["input_size"] = None
+        arch["hidden_size"] = None
+    try:
+        arr3 = np.asarray(bg.get("w3"))
+        arch["output_size"] = int(arr3.shape[1]) if arr3.ndim == 2 else None
+    except Exception:
+        arch["output_size"] = None
+
+    arch.setdefault("activation", "tanh")
+    arch.setdefault("output_scale", 0.3)
+
+    robot_json = None
+    robot_file = DATA / "best_robot_graph.json"
+    graph = getattr(individual, "robot_graph", None)
+
+    if graph is not None:
+        try:
+            save_graph_as_json(graph, str(robot_file))
+            with open(robot_file, "r") as f:
+                robot_json = json.load(f)
+        except Exception:
+            try:
+                robot_json = nx.node_link_data(graph)
+                with open(robot_file, "w") as f:
+                    json.dump(robot_json, f, indent=2)
+            except Exception:
+                robot_json = {"error": "could not serialize robot_graph"}
+    else:
+        robot_json = {"error": "individual.robot_graph is missing"}
+
+    combined = {
+        "robot": robot_json,
+        "controller": {
+            "arch": arch,
+            "w1": w1,
+            "w2": w2,
+            "w3": w3,
+        },
+    }
+
+    with open(out_path, "w") as f:
+        json.dump(combined, f, indent=2)
+
+    ctrl_file = out_path.with_name(out_path.stem + "_controller.json")
+    with open(ctrl_file, "w") as f:
+        json.dump(combined["controller"], f, indent=2)
+
+    return out_path
 
 # Individual Evaluation (Simulation + Fitness) 
 def evaluate_individual(individual: Individual):
@@ -348,13 +419,11 @@ def evaluate_individual(individual: Individual):
         console.log(f"[red]Error evaluating individual: {e}[/red]")
         return -50.0
 
-
 # Evolutionary Operators : selection, crossover, mutation, evolution loop
 def tournament_selection(pop, k):
     """Select the best individual among k randomly chosen candidates."""
     import random
     return max(random.sample(pop, k), key=lambda ind: ind.fitness)
-
 
 def crossover(p1, p2):
     """
@@ -381,7 +450,6 @@ def crossover(p1, p2):
         child.brain_genes = {k: p1.brain_genes[k].copy() for k in p1.brain_genes}
     return child
 
-
 def mutate(ind, gen, max_gen):
     """
     Introduce random changes to genes (Gaussian noise).
@@ -405,7 +473,6 @@ def mutate(ind, gen, max_gen):
         for k in ind.brain_genes:
             ind.brain_genes[k] += RNG.normal(0, strength, ind.brain_genes[k].shape)
     return ind
-
 
 #Evolution Loop 
 def evolve():
@@ -497,8 +564,16 @@ def create_best_robot_video(individual: Individual, video_path: Path):
         console.log(f"Recording video to {video_path}...")
         while data.time < SIM_DURATION:
             # Update camera to follow the robot
-            robot_x_pos = data.geom('robot-core').xpos[0]
-            camera.lookat[0] = robot_x_pos
+            # If renderer API exposes geoms by name, try to follow core; fallback to xpos index
+            try:
+                core_geom = model.geom_names.index("core")
+                robot_x_pos = data.geom(core_geom).xpos[0]
+            except Exception:
+                robot_x_pos = 0.0
+            try:
+                camera.lookat[0] = robot_x_pos
+            except Exception:
+                pass
             
             mj.mj_step(model, data)
             
@@ -531,9 +606,15 @@ def main():
     if best_robot.robot_graph is not None:
         save_graph_as_json(best_robot.robot_graph, DATA / "best_robot.json")
 
+    # --- NEW: save submission JSON including controller weights (robot + controller and controller-only) ---
+    try:
+        submission_path = DATA / "submission_best_robot.json"
+        save_submission_json(best_robot, submission_path)
+        console.log(f"[green]Saved submission JSON to {submission_path}[/green]")
+    except Exception as e:
+        console.log(f"[red]Failed to save submission JSON: {e}[/red]")
 
     create_best_robot_video(best_robot, DATA / "videos" / "best_robot_final.mp4")
     
-
 if __name__ == "__main__":
     main()
