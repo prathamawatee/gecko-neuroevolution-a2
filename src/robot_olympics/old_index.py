@@ -115,54 +115,120 @@ def fitness_function(history: list[float], time_taken: float) -> float:
     Evaluate how well a robot performed during simulation.
     """
     if not history or len(history) < 2:
-        return 0.0  # Neutral instead of harsh penalty
+        return 0.0
 
     start = np.array(history[0][:3], dtype=float)
     end = np.array(history[-1][:3], dtype=float)
     xc, yc, zc = end
     
-    tgt = np.array(TARGET_POSITION)
-    max_dist = float(np.linalg.norm(tgt - np.array(SPAWN_POS))) + 1e-8
+    tgt = np.array(TARGET_POSITION)  # [5, 0, 0.5] - the checker island
+    spawn = np.array(SPAWN_POS)
+    max_dist = float(np.linalg.norm(tgt - spawn)) + 1e-8
     dist_to_target = float(np.linalg.norm(tgt - end))
 
-    # MAIN REWARD: Forward progress (X-direction) - this is the primary driver
-    forward_progress = xc - SPAWN_POS[0]
-    forward_reward = max(0.0, forward_progress) * 100.0  # 100 points per meter forward
+    # === PRIMARY REWARD: Forward Progress ===
+    forward_progress = xc - spawn[0]  # How far forward from start
     
-    # BONUS: Distance to goal (encourage getting closer)
-    closeness_bonus = max(0.0, (max_dist - dist_to_target) / max_dist) * 200.0
+    # HUGE PENALTY for backward movement - this kills backward robots
+    if forward_progress < 0:
+        return -1000.0 * abs(forward_progress)  # Massive negative fitness
     
-    # SMALL PENALTIES (not harsh enough to kill learning)
-    lateral_penalty = min(50.0, abs(yc) * 10.0)  # Cap at 50, gentle slope
-    time_penalty = time_taken * 1.0  # Small time penalty
-    
-    # HEIGHT: Only penalize if really bad (underground)
-    height_penalty = 0.0
-    if zc < -0.5:  # Only if way underground
-        height_penalty = 20.0
-    
-    # Base fitness - should usually be positive for any forward movement
-    fitness = forward_reward + closeness_bonus - lateral_penalty - time_penalty - height_penalty
-    
-    # MEGA BONUS: Reaching finish line
-    if dist_to_target <= FINISH_RADIUS:
-        speed_bonus = max(0, 500 * (1 - time_taken / SIM_DURATION))  # Up to 500 bonus for speed
-        finish_bonus = 2000.0 + speed_bonus  # Huge reward!
-        fitness += finish_bonus
-        console.log(f"[bold green]🎯 FINISH LINE! Total bonus: {finish_bonus:.1f}[/bold green]")
-    
-    # MILESTONE BONUSES: Reward reaching certain distances
-    if forward_progress > 1.0:
-        fitness += 50.0  # Bonus for getting 1m forward
+    # MAJOR REWARD for forward movement - exponential growth
+    forward_reward = forward_progress * 300.0  # 300 points per meter forward
     if forward_progress > 2.0:
-        fitness += 100.0  # Bonus for getting 2m forward
-    if forward_progress > 3.0:
-        fitness += 150.0  # Bonus for getting 3m forward
+        forward_reward += (forward_progress - 2.0) * 200.0  # Extra bonus beyond 2m
     if forward_progress > 4.0:
-        fitness += 200.0  # Bonus for getting 4m forward
+        forward_reward += (forward_progress - 4.0) * 500.0  # Huge bonus near goal
     
-    return max(0.0, fitness)
-
+    # === DIRECTION REWARD: Stay straight toward goal ===
+    # Calculate how straight the path is toward target
+    ideal_direction = (tgt - spawn) / np.linalg.norm(tgt - spawn)
+    actual_direction = (end - spawn) / (np.linalg.norm(end - spawn) + 1e-8)
+    directional_alignment = np.dot(ideal_direction, actual_direction)
+    direction_reward = max(0.0, directional_alignment) * 200.0  # Reward straight movement
+    
+    # === LATERAL POSITION PENALTY: Stay centered (Y=0) ===
+    # Penalize being off the straight path
+    lateral_deviation = abs(yc)
+    lateral_penalty = lateral_deviation * 100.0  # Linear penalty for drift
+    if lateral_deviation > 1.0:  # Extra penalty for going way off course
+        lateral_penalty += (lateral_deviation - 1.0) * 200.0
+    
+    # === PATH EFFICIENCY: Punish zigzag movement ===
+    path_efficiency_bonus = 0.0
+    if len(history) > 5:
+        # Check if robot is moving efficiently (straight line vs actual path)
+        total_path_length = 0.0
+        backward_segments = 0
+        
+        for i in range(1, len(history)):
+            if len(history[i]) >= 3 and len(history[i-1]) >= 3:
+                prev_pos = np.array(history[i-1][:3])
+                curr_pos = np.array(history[i][:3])
+                segment = curr_pos - prev_pos
+                total_path_length += np.linalg.norm(segment)
+                
+                # Count backward segments
+                if segment[0] < -0.01:  # Moving backward in X
+                    backward_segments += 1
+        
+        # Severe penalty for backward segments
+        if backward_segments > 0:
+            backward_penalty = backward_segments * 50.0
+        else:
+            backward_penalty = 0.0
+            
+        # Efficiency bonus for straight movement
+        straight_line_distance = np.linalg.norm(end - start)
+        if total_path_length > 0:
+            efficiency = straight_line_distance / total_path_length
+            path_efficiency_bonus = efficiency * 100.0
+    else:
+        backward_penalty = 0.0
+    
+    # === DISTANCE TO GOAL REWARD ===
+    # Big reward for getting close to the checker island
+    closeness_progress = (max_dist - dist_to_target) / max_dist
+    closeness_reward = closeness_progress * 400.0
+    
+    # === SPEED REWARD ===
+    # Reward faster completion
+    speed_bonus = max(0.0, (SIM_DURATION - time_taken) / SIM_DURATION) * 100.0
+    
+    # === HEIGHT STABILITY ===
+    # Small penalty for being too low (but not harsh)
+    height_penalty = 0.0
+    if zc < 0.05:
+        height_penalty = 30.0
+    
+    # === MILESTONE BONUSES ===
+    milestone_bonus = 0.0
+    if forward_progress > 1.0:
+        milestone_bonus += 200.0
+    if forward_progress > 2.0:
+        milestone_bonus += 300.0
+    if forward_progress > 3.0:
+        milestone_bonus += 500.0
+    if forward_progress > 4.0:
+        milestone_bonus += 800.0
+    
+    # === CALCULATE BASE FITNESS ===
+    base_fitness = (forward_reward + direction_reward + closeness_reward + 
+                   path_efficiency_bonus + speed_bonus + milestone_bonus - 
+                   lateral_penalty - height_penalty - backward_penalty)
+    
+    # === ULTIMATE GOAL: FINISH LINE BONUS ===
+    if dist_to_target <= FINISH_RADIUS:
+        # MASSIVE reward for reaching the checker island
+        finish_time_bonus = max(0.0, (SIM_DURATION - time_taken) / SIM_DURATION * 1000.0)
+        finish_bonus = 5000.0 + finish_time_bonus  # 5000+ points for finishing!
+        base_fitness += finish_bonus
+        
+        console.log(f"[bold green]🏁 CHECKER ISLAND REACHED! 🏁[/bold green]")
+        console.log(f"[bold cyan]Finish bonus: {finish_bonus:.1f} points![/bold cyan]")
+        console.log(f"[bold yellow]Time: {time_taken:.2f}s, Forward: {forward_progress:.2f}m[/bold yellow]")
+    
+    return max(0.0, base_fitness)
 # Individual Class (Robot Genome)
 class Individual:
     """
@@ -238,18 +304,22 @@ def evaluate_individual(individual: Individual):
     try:
         robot_spec, robot_graph = generate_robot_from_genes(individual)
         
-        # More lenient body requirements
+        # Reject obviously broken robots
         if robot_graph is None or len(robot_graph.nodes) < 2:
-            return 1.0  # Small positive instead of negative
+            return 1.0
+            
+        # Reject overly complex robots that are hard to control
+        if len(robot_graph.nodes) > 20:
+            return 5.0
 
         mj.set_mjcb_control(None)
         world = OlympicArena()
         world.spawn(robot_spec.spec, spawn_position=SPAWN_POS)
         model = world.spec.compile()
 
-        # Gentler physics - less damping for more movement
-        model.opt.timestep = 0.001  # Slightly larger timestep
-        model.dof_damping[:] = np.maximum(model.dof_damping, 0.05)  # Less damping
+        # Optimize physics for stable forward movement
+        model.opt.timestep = 0.002  # Slightly larger for stability
+        model.dof_damping[:] = np.maximum(model.dof_damping, 0.1)  # Moderate damping
         data = mj.MjData(model)
         mj.mj_resetData(model, data)
 
@@ -262,46 +332,64 @@ def evaluate_individual(individual: Individual):
         ctrl = Controller(controller_callback_function=ctrl_fn, tracker=tracker)
         mj.set_mjcb_control(lambda m, d: ctrl.set_control(m, d))
 
-        # Run full simulation - no early termination for exploration
+        # Run simulation with progress monitoring
         start_time = data.time
         steps = 0
         max_steps = int(SIM_DURATION / model.opt.timestep)
+        last_progress_check = 0.0
         
         while data.time - start_time < SIM_DURATION and steps < max_steps:
             mj.mj_step(model, data)
             steps += 1
             
-            # Only check for major physics failures
+            # Check for physics failures
             if not np.isfinite(data.qacc).all() or not np.isfinite(data.qpos).all():
-                # Even physics failures get some reward for trying
+                # Give partial credit for what was achieved
                 if len(tracker.history.get("xpos", [])) > 0 and len(tracker.history["xpos"][0]) > 0:
                     partial_fitness = fitness_function(tracker.history["xpos"][0], data.time - start_time)
-                    return max(10.0, partial_fitness * 0.5)  # 50% reward for partial run
+                    return max(10.0, partial_fitness * 0.3)
                 return 5.0
             
-            # Check for early finish (but don't penalize for not finishing)
-            if steps % 200 == 0 and len(tracker.history.get("xpos", [])) > 0:
+            # Check progress every 500 steps
+            if steps % 500 == 0 and len(tracker.history.get("xpos", [])) > 0:
                 if len(tracker.history["xpos"][0]) > 0:
                     current_pos = np.array(tracker.history["xpos"][0][-1])
+                    current_progress = current_pos[0] - SPAWN_POS[0]
+                    
+                    # Early finish detection
                     dist_to_goal = np.linalg.norm(np.array(TARGET_POSITION) - current_pos)
                     if dist_to_goal < FINISH_RADIUS:
                         elapsed_time = data.time - start_time
-                        early_bonus = max(0.0, 1000.0 * (1 - elapsed_time / SIM_DURATION))
-                        console.log(f"[bold green]🏁 Early finish! Time: {elapsed_time:.2f}s[/bold green]")
-                        return 2000.0 + early_bonus
+                        early_finish_bonus = max(0.0, 2000.0 * (1 - elapsed_time / SIM_DURATION))
+                        console.log(f"[bold green]🎯 EARLY FINISH! Time: {elapsed_time:.2f}s[/bold green]")
+                        return 5000.0 + early_finish_bonus
+                    
+                    # Terminate if robot is going severely backward
+                    if current_progress < -1.0:  # More than 1m backward
+                        return fitness_function(tracker.history["xpos"][0], data.time - start_time)
+                    
+                    last_progress_check = current_progress
 
-        # Always try to evaluate trajectory
+        # Final evaluation
         if len(tracker.history.get("xpos", [])) > 0 and len(tracker.history["xpos"][0]) > 0:
             trajectory = tracker.history["xpos"][0]
             individual.trajectory = trajectory
-            return fitness_function(trajectory, data.time - start_time)
+            final_fitness = fitness_function(trajectory, data.time - start_time)
+            
+            # Log progress for monitoring
+            final_pos = np.array(trajectory[-1])
+            final_progress = final_pos[0] - SPAWN_POS[0]
+            if final_progress > 0.5:  # Significant forward movement
+                console.log(f"[green]Forward progress: {final_progress:.2f}m, Y-drift: {abs(final_pos[1]):.2f}m[/green]")
+            
+            return final_fitness
         
-        # Even if no trajectory, give minimum reward
         return 2.0
-    
+
     except Exception as e:
         console.log(f"[yellow]Evaluation error: {e}[/yellow]")
-        return 1.0  # Small positive reward even for errors
+        return 1.0
+
 
 
 # Evolutionary Operators
@@ -343,24 +431,33 @@ def mutate(ind, gen, max_gen):
     """
     progress = gen / max_gen
     
-    # More aggressive exploration early
-    base_rate = MUTATION_RATE * (1.5 if gen < 10 else (1 - 0.2 * progress))
-    strength = 0.3 if gen < 5 else 0.2 * (1 - 0.3 * progress)
+    # Aggressive exploration early, refinement later
+    if gen < 5:
+        base_rate = MUTATION_RATE * 2.0
+        strength = 0.4
+    elif gen < 15:
+        base_rate = MUTATION_RATE * 1.5
+        strength = 0.3
+    else:
+        base_rate = MUTATION_RATE * (1 - 0.3 * progress)
+        strength = 0.2 * (1 - 0.4 * progress)
     
-    # Shorter body freeze for more exploration
-    body_freeze_period = 8  # Reduced from 15
-    body_rate = 0.0 if gen < body_freeze_period else base_rate * 0.5
-    
-    # Encourage brain exploration
-    brain_rate = base_rate * (3.0 if gen < body_freeze_period else 1.0)
+    # Body evolution strategy
+    body_freeze_period = 10
+    if gen < body_freeze_period:
+        body_rate = 0.0  # Let controllers adapt to stable bodies first
+        brain_rate = base_rate * 3.0  # Focus on brain evolution
+    else:
+        body_rate = base_rate * 0.4  # Gentle body changes
+        brain_rate = base_rate * 1.2  # Continue brain optimization
 
-    # Body mutation
+    # Body mutation (conservative after freeze)
     for i in range(3):
         if RNG.random() < body_rate:
-            noise = RNG.normal(0, strength, GENOTYPE_SIZE)
+            noise = RNG.normal(0, strength * 0.3, GENOTYPE_SIZE)  # Gentle body changes
             ind.body_genes[i] = np.clip(ind.body_genes[i] + noise, 0, 1)
 
-    # Brain mutation - more aggressive
+    # Brain mutation (more aggressive)
     if RNG.random() < brain_rate:
         for k in ind.brain_genes:
             noise = RNG.normal(0, strength, ind.brain_genes[k].shape)
