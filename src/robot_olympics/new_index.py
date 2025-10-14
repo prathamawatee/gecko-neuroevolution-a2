@@ -231,7 +231,16 @@ def evolved_nn_controller(model, data, brain):
     
     # IMPROVEMENT: Normalize inputs
     qpos_norm, qvel_norm = _normalize_inputs(qpos, qvel)
-    
+
+    # SAFE tilt extraction from root body's rotation (xmat is flat: 9 * nbody)
+    tilt = np.zeros(3)
+    try:
+        if hasattr(data, "xmat") and data.xmat is not None and np.size(data.xmat) >= 9:
+            root_rot = np.array(data.xmat[:9], dtype=float).reshape(3, 3)
+            tilt = root_rot[:, 2]  # world "up" vector of root body
+    except Exception:
+        tilt = np.zeros(3)
+
     # Truncate velocities to match positions
     vpart = qvel_norm[:len(qpos_norm)] if len(qvel_norm) > len(qpos_norm) else qvel_norm
     if len(vpart) < len(qpos_norm):
@@ -242,11 +251,12 @@ def evolved_nn_controller(model, data, brain):
     bias_signal = np.array([1.0])  # Bias neuron
     time_signal = np.array([data.time / SIM_DURATION])  # Normalized time
     
-    # Combine all inputs
+    # Combine all inputs (includes tilt — robust to shape issues)
     raw_inputs = np.concatenate([
         qpos_norm, 
         vpart, 
         goal_direction, 
+        tilt,            # <— added tilt feature (3 dims)
         bias_signal, 
         time_signal
     ])
@@ -266,7 +276,7 @@ def evolved_nn_controller(model, data, brain):
     # IMPROVEMENT: Conservative control outputs
     actual_output_size = model.nu
     if actual_output_size > 0:
-        outputs = 0.4 * raw_output[:actual_output_size]  # Reduced from 0.3
+        outputs = 0.4 * raw_output[:actual_output_size]
     else:
         outputs = np.array([])
 
@@ -284,10 +294,6 @@ def evaluate_individual(individual: Individual) -> float:
         if robot_graph is None or len(robot_graph.nodes) < 2:
             return 2.0  # Small positive instead of penalty
             
-        # # Reject only extremely complex robots
-        # if len(robot_graph.nodes) > 25:
-        #     return 5.0
-
         # For large morphologies, don't hard-reject; let fitness decide viability
         max_nodes = int(NUM_OF_MODULES * 3.0)  # generous soft cap
         if len(robot_graph.nodes) > max_nodes:

@@ -2,8 +2,8 @@
 
 # Evolutionary Algorithm (EA) parameters
 EVOLUTION_CONFIG = {
-    "population_size": 20,      # Number of robots per generation
-    "generations": 30,          # Total number of generations
+    "population_size": 30,      # Number of robots per generation
+    "generations": 50,          # Total number of generations
     "genotype_size": 64,        # Length of each body gene vector
     "tournament_size": 3,       # Number of individuals in tournament selection
     "mutation_rate": 0.15,      # Probability of mutation per individual
@@ -17,5 +17,5 @@ ENVIRONMENT_CONFIG = {
     "target_pos": [5, 0, 0.5],        # Finish line target position
     "finish_radius": 0.2,             # Distance threshold to count as finished
     "simulation_time": 15,            # Duration of each simulation in seconds
-    "num_modules": 12                 # Number of modules in the robot body
+    "num_modules": 30                 # Number of modules in the robot body
 }
