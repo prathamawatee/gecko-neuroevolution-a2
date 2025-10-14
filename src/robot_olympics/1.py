@@ -402,40 +402,47 @@ def mutate(ind, gen, max_gen):
     IMPROVED: Curriculum learning with adaptive mutation rates.
     """
     progress = gen / max_gen
-    
-    # CURRICULUM PHASE 1: Body freeze, brain exploration (gens 1-8)
-    if gen < 15:
-        body_rate = 0.0  # Freeze body completely
-        brain_rate = MUTATION_RATE * 2.5  # Aggressive brain learning
-        strength = 0.3
-        console.log("[cyan]Phase 1: Brain adaptation[/cyan]")
-        
-    # CURRICULUM PHASE 2: Co-evolution begins (gens 9-20)
-    elif gen < 40:
-        body_rate = MUTATION_RATE * 0.3  # Gentle body changes
-        brain_rate = MUTATION_RATE * 1.5  # Continued brain focus
-        strength = 0.25 
-        console.log("[magenta]Phase 2: Co-evolution[/magenta]")
-        
-    # CURRICULUM PHASE 3: Fine-tuning (gens 21+)
-    else:
-        body_rate = MUTATION_RATE * 0.4  # Moderate body exploration
-        brain_rate = MUTATION_RATE * 1.5  # Balanced brain tuning
-        strength = 0.12
-        console.log("[yellow]Phase 3: Optimization[/yellow]")
 
-    # Body mutation
+    # PHASE 1 (0–20): Brain learning only
+    if gen < 20:
+        body_rate = 0.0
+        brain_rate = MUTATION_RATE * 2.5
+        strength = 0.3
+        console.log("[cyan]Phase 1: Brain warm-up[/cyan]")
+
+    # PHASE 2 (20–60): Joint adaptation
+    elif gen < 80:
+        body_rate = MUTATION_RATE * 0.3
+        brain_rate = MUTATION_RATE * 2.0
+        strength = 0.22
+        console.log("[magenta]Phase 2: Co-evolution[/magenta]")
+
+    # # PHASE 3 (60–120): Brain emphasis continues, slow refinement
+    # elif gen < :
+    #     body_rate = MUTATION_RATE * 0.5
+    #     brain_rate = MUTATION_RATE * 1.8
+    #     strength = 0.18
+    #     console.log("[yellow]Phase 3: Sustained optimization[/yellow]")
+
+    # PHASE 4 (>120): Very fine tuning
+    else:
+        body_rate = MUTATION_RATE * 0.3
+        brain_rate = MUTATION_RATE * 1.0
+        strength = 0.10
+        console.log("[green]Phase 4: Fine tuning[/green]")
+
+    # Mutate body
     for i in range(3):
         if RNG.random() < body_rate:
             noise = RNG.normal(0, strength * 0.4, GENOTYPE_SIZE)
             ind.body_genes[i] = np.clip(ind.body_genes[i] + noise, 0, 1)
 
-    # Brain mutation
+    # Mutate brain
     if RNG.random() < brain_rate:
         for k in ind.brain_genes:
             noise = RNG.normal(0, strength, ind.brain_genes[k].shape)
             ind.brain_genes[k] += noise
-    
+
     return ind
 
 # Visualization Functions (unchanged but enhanced)
@@ -614,10 +621,12 @@ def evolve():
             console.log(f"  Preserved {ELITE_SIZE} elites")
             
             # Adaptive diversity: increase after gen 50
-            if g < 50:
+            if g < 30:
                 diversity_ratio = 0.10
+            elif g < 80:
+                diversity_ratio = 0.15
             else:
-                diversity_ratio = 0.25  # more new blood later
+                diversity_ratio = 0.05
             diversity_count = int(POPULATION_SIZE * diversity_ratio)
             for _ in range(diversity_count):
                 new_pop.append(Individual())

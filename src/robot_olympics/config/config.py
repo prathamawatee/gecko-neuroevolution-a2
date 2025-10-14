@@ -2,8 +2,8 @@
 
 # Evolutionary Algorithm (EA) parameters
 EVOLUTION_CONFIG = {
-    "population_size": 30,      # Number of robots per generation
-    "generations": 50,          # Total number of generations
+    "population_size": 50,      # Number of robots per generation
+    "generations": 100,          # Total number of generations
     "genotype_size": 64,        # Length of each body gene vector
     "tournament_size": 3,       # Number of individuals in tournament selection
     "mutation_rate": 0.15,      # Probability of mutation per individual
